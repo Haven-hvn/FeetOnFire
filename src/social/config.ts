@@ -27,7 +27,7 @@ export function socialConfig(): SocialConfig {
     arkivRpcUrl: env('VITE_DANCE_ARKIV_RPC_URL', 'https://rpc.rabdi.db-chain.testnet.arkiv.network'),
     arkivApiKey: env('VITE_DANCE_ARKIV_API_KEY'),
     walletConnectProjectId: env('VITE_DANCE_WALLETCONNECT_PROJECT_ID'),
-    icpHost: env('VITE_DANCE_ICP_HOST', 'https://icp0.io'),
+    icpHost: env('VITE_DANCE_ICP_HOST', 'https://icp-api.io'),
     havenAolCanisterId: env('VITE_DANCE_HAVEN_AOL_CANISTER_ID', 'gny6k-fqaaa-aaaab-ag3ra-cai'),
     havenAolVerifyingContract: env('VITE_DANCE_HAVEN_AOL_VERIFYING_CONTRACT', '0x0000000000000000000000000000000000000000'),
     fetchRootKey: env('VITE_DANCE_HAVEN_AOL_FETCH_ROOT_KEY', 'false') === 'true',

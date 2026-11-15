@@ -22,7 +22,8 @@ npm run serve        # http://localhost:5173/  (binds 127.0.0.1 only)
 ```
 
 Use desktop Chrome. **Social packs** is the primary source: it reads `haven.file.full`
-Arkiv records whose payload carries a `stepmania-pack` manifest (one ZIP per pack), shows the
+Arkiv records whose payload carries a `stepmania-pack` manifest under `payload.x.dance`
+(one ZIP per pack), shows the
 advisory song list, and imports through the same ZIP pipeline as local files. A pack marked
 `sample` with a clear `fcid` plays without a wallet; gated packs require a wallet whose
 `balanceOf` meets the Arkiv gate threshold, and sealed packs still need the normal Haven-AOL
@@ -31,6 +32,26 @@ epoch unlock. Local folder/zip import remains available.
 Copy `.env.example` to `.env` for WalletConnect/Arkiv/AOL endpoints; without a project id the
 wallet button explains that social gating is not configured, while clear samples still work.
 Songs and scores stay in the browser's own storage on this machine.
+
+## Deploy (PinMe)
+
+`.github/workflows/deploy.yml` builds on pushes to `main` and uploads a staged `out/`
+directory containing `index.html`, `app.css`, and `dist/` so `/dist/app/main.js` resolves.
+
+GitHub Actions secrets:
+
+- `PINME_APPKEY` — PinMe deployment key
+- `VITE_DANCE_WALLETCONNECT_PROJECT_ID` — WalletConnect/AppKit project id
+- `VITE_DANCE_ARKIV_API_KEY` — optional Arkiv API key
+- `VITE_DANCE_SYNAPSE_API_KEY` — optional Synapse API key
+
+GitHub Actions variables:
+
+- `PINME_DOMAIN=feetonfire` — PinMe subdomain (dotless; PinMe adds the public host)
+- optional `VITE_DANCE_*` endpoint overrides matching `.env.example`
+
+Note: FeetOnFire requires cross-origin isolation for `SharedArrayBuffer`. Verify the deployed
+host sends COOP/COEP headers; a plain static PinMe upload may show the isolation notice.
 
 ## Checks
 

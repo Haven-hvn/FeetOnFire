@@ -1,0 +1,78 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pinme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '26.12.1'
+          cache: npm
+      - name: Check PinMe secret
+        env:
+          PINME_APPKEY: ${{ secrets.PINME_APPKEY }}
+        run: |
+          if [ -z "$PINME_APPKEY" ]; then
+            echo "PINME_APPKEY secret missing: npm install -g pinme && pinme login && pinme show-appkey" >&2
+            exit 1
+          fi
+      - name: Check social secrets
+        env:
+          VITE_DANCE_WALLETCONNECT_PROJECT_ID: ${{ secrets.VITE_DANCE_WALLETCONNECT_PROJECT_ID }}
+          VITE_DANCE_ARKIV_API_KEY: ${{ secrets.VITE_DANCE_ARKIV_API_KEY }}
+          VITE_DANCE_SYNAPSE_API_KEY: ${{ secrets.VITE_DANCE_SYNAPSE_API_KEY }}
+        run: |
+          for name in VITE_DANCE_WALLETCONNECT_PROJECT_ID VITE_DANCE_ARKIV_API_KEY VITE_DANCE_SYNAPSE_API_KEY; do
+            if [ -n "${!name}" ]; then echo "$name is set"; else echo "$name is empty"; fi
+          done
+      - name: Install
+        run: npm ci
+      - name: Build
+        env:
+          VITE_DANCE_ARKIV_RPC_URL: ${{ vars.VITE_DANCE_ARKIV_RPC_URL || 'https://rpc.rabdi.db-chain.testnet.arkiv.network' }}
+          VITE_DANCE_ARKIV_API_KEY: ${{ secrets.VITE_DANCE_ARKIV_API_KEY }}
+          VITE_DANCE_WALLETCONNECT_PROJECT_ID: ${{ secrets.VITE_DANCE_WALLETCONNECT_PROJECT_ID }}
+          VITE_DANCE_ICP_HOST: ${{ vars.VITE_DANCE_ICP_HOST || 'https://icp-api.io' }}
+          VITE_DANCE_HAVEN_AOL_CANISTER_ID: ${{ vars.VITE_DANCE_HAVEN_AOL_CANISTER_ID || 'gny6k-fqaaa-aaaab-ag3ra-cai' }}
+          VITE_DANCE_HAVEN_AOL_VERIFYING_CONTRACT: ${{ vars.VITE_DANCE_HAVEN_AOL_VERIFYING_CONTRACT || '0x0000000000000000000000000000000000000000' }}
+          VITE_DANCE_HAVEN_AOL_FETCH_ROOT_KEY: ${{ vars.VITE_DANCE_HAVEN_AOL_FETCH_ROOT_KEY || 'false' }}
+          VITE_DANCE_IPFS_GATEWAY: ${{ vars.VITE_DANCE_IPFS_GATEWAY || 'https://w3s.link' }}
+          VITE_DANCE_SYNAPSE_BASE_URL: ${{ vars.VITE_DANCE_SYNAPSE_BASE_URL || 'https://api.synapse.storage' }}
+          VITE_DANCE_SYNAPSE_API_KEY: ${{ secrets.VITE_DANCE_SYNAPSE_API_KEY }}
+          VITE_DANCE_EIP712_CHAIN_ID: ${{ vars.VITE_DANCE_EIP712_CHAIN_ID || '1' }}
+          VITE_DANCE_MAX_RECORDS: ${{ vars.VITE_DANCE_MAX_RECORDS || '200' }}
+        run: |
+          npm run build
+          test -f dist/app/main.js
+      - name: Stage PinMe upload
+        run: |
+          rm -rf out
+          mkdir -p out
+          cp app/index.html out/index.html
+          cp app/app.css out/app.css
+          cp -R dist out/dist
+          test -f out/index.html
+          test -f out/app.css
+          test -f out/dist/app/main.js
+      - name: Authenticate PinMe
+        env:
+          PINME_APPKEY: ${{ secrets.PINME_APPKEY }}
+        run: |
+          npx pinme@2.0.12 --version
+          npx pinme@2.0.12 set-appkey "$PINME_APPKEY"
+      - name: Deploy
+        env:
+          PINME_DOMAIN: ${{ vars.PINME_DOMAIN || secrets.PINME_DOMAIN }}
+        run: |
+          if [ -n "$PINME_DOMAIN" ]; then npx pinme@2.0.12 upload ./out --domain "$PINME_DOMAIN"; else npx pinme@2.0.12 upload ./out; fi
+          npx pinme@2.0.12 list -l 3 || true

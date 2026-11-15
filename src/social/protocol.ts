@@ -33,6 +33,7 @@ export interface PackMedia {
   fcid?: string;
   piece?: string;
   mime?: number;
+  contentType?: string;
   size?: number;
   name?: string;
   sha256?: string;
@@ -67,6 +68,16 @@ export interface ArkivRow {
 
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const GATE_CHAINS = new Set<ChainVariant>(['EthMainnet', 'EthSepolia', 'BaseMainnet', 'BaseSepolia', 'OptimismMainnet', 'OptimismSepolia', 'ArbitrumOne', 'ArbitrumSepolia']);
+const EIP155_TO_VARIANT: Record<number, ChainVariant> = {
+  1: 'EthMainnet',
+  11155111: 'EthSepolia',
+  8453: 'BaseMainnet',
+  84532: 'BaseSepolia',
+  10: 'OptimismMainnet',
+  11155420: 'OptimismSepolia',
+  42161: 'ArbitrumOne',
+  421614: 'ArbitrumSepolia',
+};
 
 export function isAddress(value: unknown): value is string {
   return typeof value === 'string' && EVM_ADDRESS.test(value);
@@ -134,6 +145,16 @@ function unwrap(value: unknown): unknown {
 
 export function toAttributeRecord(attributes: unknown): Record<string, unknown> {
   const out: Record<string, unknown> = {};
+  if (Array.isArray(attributes)) {
+    for (const item of attributes) {
+      if (!item || typeof item !== 'object') continue;
+      const rec = item as Record<string, unknown>;
+      const name = text(rec.name) ?? text(rec.key);
+      if (!name) continue;
+      out[name] = unwrap(rec.value ?? rec);
+    }
+    return out;
+  }
   if (!attributes || typeof attributes !== 'object') return out;
   for (const [name, raw] of Object.entries(attributes as Record<string, unknown>)) {
     out[name] = unwrap(raw);
@@ -202,12 +223,21 @@ export function parseGateJson(raw: unknown): GateJson | undefined {
   return { version, epoch: bigintValue(obj.epoch), gate, raw: obj };
 }
 
+function chainVariantFromAttribute(value: unknown): ChainVariant | undefined {
+  const named = text(value);
+  if (named && GATE_CHAINS.has(named as ChainVariant)) return named as ChainVariant;
+  let id: number | undefined;
+  if (typeof value === 'number') id = value;
+  else if (typeof value === 'string' && /^\d+$/.test(value.trim())) id = Number(value.trim());
+  return id === undefined ? undefined : EIP155_TO_VARIANT[id];
+}
+
 function parseGateFromAttributes(attributes: Record<string, unknown>): GateTriple | undefined {
-  const chain = text(attributes.gate_chain);
-  const tokenAddress = text(attributes.gate_tokenAddress);
+  const chain = chainVariantFromAttribute(attributes.gate_chain);
+  const tokenAddress = text(attributes.gate_token) ?? text(attributes.gate_tokenAddress);
   const threshold = bigintValue(attributes.gate_threshold);
-  if (!chain || !GATE_CHAINS.has(chain as ChainVariant) || !isAddress(tokenAddress ?? '') || threshold === undefined) return undefined;
-  return { chain: chain as ChainVariant, tokenAddress: tokenAddress!, threshold };
+  if (!chain || !isAddress(tokenAddress ?? '') || threshold === undefined) return undefined;
+  return { chain, tokenAddress: tokenAddress!, threshold };
 }
 
 function baseName(name: string | undefined): string | undefined {
@@ -216,9 +246,10 @@ function baseName(name: string | undefined): string | undefined {
   return base.replace(/\.(zip|smzip)$/i, '') || undefined;
 }
 
-function looksLikeZip(name: string | undefined, mime: number | undefined): boolean {
+function looksLikeZip(name: string | undefined, mime: number | undefined, contentType?: string): boolean {
   if (mime === STEPMANIA_ZIP_MIME) return true;
-  return /\.(zip|smzip)$/i.test(name ?? '');
+  if (/\.(zip|smzip)$/i.test(name ?? '')) return true;
+  return /zip/i.test(contentType ?? '');
 }
 
 function parseSongs(value: unknown): PackSong[] {
@@ -250,25 +281,28 @@ export function parseDanceEntity(row: ArkivRow): DancePack | undefined {
   const payload = decodePayload(row.payload ?? attributes.payload);
   if (!payload) return undefined;
 
-  const danceRaw = payload.dance;
+  const payloadExtra = payload.x && typeof payload.x === 'object' && !Array.isArray(payload.x) ? (payload.x as Record<string, unknown>) : undefined;
+  const danceRaw = payloadExtra?.dance ?? payload.dance;
   const hasManifest = manifestValid(danceRaw);
   const mime = num(payload.mime ?? attributes.mime);
+  const contentType = text(payload.ct) ?? text(attributes.ct);
   const mediaName = text(payload.name) ?? text(attributes.name);
-  if (!hasManifest && !looksLikeZip(mediaName, mime)) return undefined;
+  if (!hasManifest && !looksLikeZip(mediaName, mime, contentType)) return undefined;
 
   const dance = hasManifest ? (danceRaw as Record<string, unknown>) : undefined;
   const gateJsonRaw = payload.gate;
   const gateJson = typeof gateJsonRaw === 'string' ? gateJsonRaw : gateJsonRaw === undefined ? undefined : JSON.stringify(gateJsonRaw);
   const parsedGate = parseGateJson(gateJsonRaw);
-  const gate = parseGateFromAttributes(attributes) ?? parsedGate?.gate;
+  const gate = parsedGate?.gate ?? parseGateFromAttributes(attributes);
   const title = text(attributes.title) ?? text(payload.title) ?? text(dance?.album) ?? text(dance?.title) ?? baseName(mediaName) ?? 'Untitled pack';
   const media: PackMedia = {
     fcid: text(payload.fcid),
     piece: text(payload.piece),
     mime,
+    contentType,
     size: num(payload.size),
     name: mediaName,
-    sha256: text(payload.sha256 ?? payload.sha256_ct ?? attributes.sha256_ct),
+    sha256: text(payload.pt_hash ?? payload.sha256 ?? payload.sha256_ct ?? attributes.sha256_ct),
   };
   const key = text(row.$key) ?? text(row.key) ?? `${title}:${media.piece ?? media.fcid ?? ''}`;
   const created = num(row.$createdAt ?? row.createdAt) ?? 0;
