@@ -42,7 +42,9 @@ export class SharedClock {
   }
 
   static allocate(): SharedArrayBuffer | ArrayBuffer {
-    return typeof SharedArrayBuffer !== 'undefined' ? new SharedArrayBuffer(SHARED_CLOCK_BYTES) : new ArrayBuffer(SHARED_CLOCK_BYTES);
+    return typeof SharedArrayBuffer !== 'undefined' && globalThis.crossOriginIsolated === true
+      ? new SharedArrayBuffer(SHARED_CLOCK_BYTES)
+      : new ArrayBuffer(SHARED_CLOCK_BYTES);
   }
 
   /**

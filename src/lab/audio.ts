@@ -77,7 +77,7 @@ export class AudioLab {
     this.hint = String(latencyHint);
     await ctx.audioWorklet.addModule(new URL('./click-worklet.js', import.meta.url));
     this.click = makeClick(ctx.sampleRate);
-    const sab = typeof SharedArrayBuffer !== 'undefined' ? new SharedArrayBuffer(32) : null;
+    const sab = typeof SharedArrayBuffer !== 'undefined' && window.crossOriginIsolated ? new SharedArrayBuffer(32) : null;
     this.shared = sab ? new Int32Array(sab) : null;
     const node = new AudioWorkletNode(ctx, 'lab-processor', {
       numberOfInputs: 1,

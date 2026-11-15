@@ -17,7 +17,7 @@ import { EV_MINE_HIT, Judge } from './judge.ts';
 import { INPUT_FIELDS, type FromWorker, type InitMessage, type PlaySettings, type ReportLog, type Results, type Telemetry, type ToWorker } from './protocol.ts';
 import { Renderer } from './render.ts';
 import { Scene } from './scene.ts';
-import { SharedClock } from './shared-clock.ts';
+import { SHARED_CLOCK_BYTES, SharedClock } from './shared-clock.ts';
 
 interface WorkerScope {
   onmessage: ((e: MessageEvent) => void) | null;
@@ -191,7 +191,7 @@ function init(msg: InitMessage): void {
   if (messageMode) {
     messageInput = new MessageInput();
     inputSource = messageInput;
-    clock = new SharedClock(SharedClock.allocate());
+    clock = new SharedClock(new ArrayBuffer(SHARED_CLOCK_BYTES));
   } else {
     messageInput = null;
     if (!msg.ring || !msg.clock || !msg.probe) throw new Error('shared game buffers missing');

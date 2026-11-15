@@ -25,7 +25,7 @@ export class VideoLab {
     host.replaceChildren(canvas);
     const offscreen = canvas.transferControlToOffscreen();
 
-    const probeBuffer = typeof SharedArrayBuffer !== 'undefined' ? new SharedArrayBuffer(8) : null;
+    const probeBuffer = typeof SharedArrayBuffer !== 'undefined' && window.crossOriginIsolated ? new SharedArrayBuffer(8) : null;
     this.probe = probeBuffer ? new Float64Array(probeBuffer) : null;
 
     const worker = new Worker(new URL('./video-worker.js', import.meta.url), { type: 'module' });

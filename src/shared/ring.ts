@@ -11,6 +11,10 @@ const DROPPED = 2;
 
 export type RingBuffer = SharedArrayBuffer | ArrayBuffer;
 
+function canShareMemory(): boolean {
+  return typeof SharedArrayBuffer !== 'undefined' && globalThis.crossOriginIsolated === true;
+}
+
 export class EventRing {
   readonly buffer: RingBuffer;
   readonly fields: number;
@@ -33,7 +37,7 @@ export class EventRing {
     this.data = new Float64Array(buffer, HEADER_BYTES, capacity * fields);
   }
 
-  static create(capacity: number, fields: number, shared = typeof SharedArrayBuffer !== 'undefined'): EventRing {
+  static create(capacity: number, fields: number, shared = canShareMemory()): EventRing {
     if (capacity < 2 || (capacity & (capacity - 1)) !== 0) throw new Error('EventRing: capacity must be a power of two');
     const bytes = HEADER_BYTES + capacity * fields * 8;
     return new EventRing(shared ? new SharedArrayBuffer(bytes) : new ArrayBuffer(bytes), fields);
