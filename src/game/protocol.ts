@@ -49,10 +49,11 @@ export interface InitMessage {
   canvas: OffscreenCanvas;
   /** performance.timeOrigin of the page. */
   mainOrigin: number;
-  ring: SharedArrayBuffer;
-  clock: SharedArrayBuffer;
+  mode: 'shared' | 'messages';
+  ring?: SharedArrayBuffer;
+  clock?: SharedArrayBuffer;
   /** Where the page writes its clock for the offset measurement. */
-  probe: SharedArrayBuffer;
+  probe?: SharedArrayBuffer;
   simfile: Uint8Array;
   format: SimfileFormat;
   path: string;
@@ -62,6 +63,9 @@ export interface InitMessage {
 
 export type ToWorker =
   | InitMessage
+  | { type: 'input'; record: number[] }
+  | { type: 'clock'; fitPerf: number; fitContext: number; fitSlope: number; musicOffsetSeconds: number | null }
+  | { type: 'clock-sync-reply'; workerNow: number; receivedPageNow: number; pageNow: number }
   | { type: 'resize'; width: number; height: number }
   | { type: 'background'; bitmap: ImageBitmap; dim: number }
   | { type: 'report' }
@@ -129,6 +133,7 @@ export interface ReportLog {
 
 export type FromWorker =
   | { type: 'clock-ready' }
+  | { type: 'clock-sync'; workerNow: number }
   | { type: 'ready'; title: string; notes: number; firstSeconds: number; lastSeconds: number; tracks: number }
   | { type: 'error'; message: string }
   | { type: 'mine' }

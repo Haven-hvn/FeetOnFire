@@ -13,9 +13,13 @@
 // The pad paths are written against the specifications and synthetic reports: no pad has
 // been plugged in during development.
 
-import type { EventRing } from '../shared/ring.ts';
 import { HidReportDiffer, type Bindings } from './bindings.ts';
 import { INPUT_HID, INPUT_KEY, INPUT_PAD } from './protocol.ts';
+
+/** Where stamped panel presses go while a game is running. */
+export interface InputSink {
+  push(rec: ArrayLike<number>): boolean;
+}
 
 interface HidDevice extends EventTarget {
   readonly opened: boolean;
@@ -53,7 +57,7 @@ export class InputRouter {
   onControl: ((control: string, down: boolean, timeStamp: number) => void) | null = null;
 
   private bindings: Bindings;
-  private ring: EventRing | null = null;
+  private ring: InputSink | null = null;
   /** Controls that are down, and how many hold each panel. */
   private readonly down = new Set<string>();
   private readonly panelDown = new Int32Array(16);
@@ -72,7 +76,7 @@ export class InputRouter {
   }
 
   /** Where panel presses go; null: nowhere (menus). */
-  setRing(ring: EventRing | null): void {
+  setRing(ring: InputSink | null): void {
     this.ring = ring;
   }
 

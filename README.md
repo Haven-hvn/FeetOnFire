@@ -50,8 +50,8 @@ GitHub Actions variables:
 - `PINME_DOMAIN=feetonfire` — PinMe subdomain (dotless; PinMe adds the public host)
 - optional `VITE_DANCE_*` endpoint overrides matching `.env.example`
 
-Note: FeetOnFire requires cross-origin isolation for `SharedArrayBuffer`. Verify the deployed
-host sends COOP/COEP headers; a plain static PinMe upload may show the isolation notice.
+Note: cross-origin isolation is optional. With COOP/COEP the game uses `SharedArrayBuffer`;
+on hosts like PinMe it falls back to message passing, which may add a little input/clock jitter.
 
 ## Checks
 

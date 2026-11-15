@@ -24,6 +24,30 @@ interface WorkerScope {
   postMessage(message: FromWorker): void;
   requestAnimationFrame(callback: (time: number) => void): number;
   cancelAnimationFrame(handle: number): void;
+  setTimeout(callback: () => void, ms?: number): number;
+}
+
+interface InputSource {
+  pop(out: Float64Array): boolean;
+  readonly dropped: number;
+}
+
+class MessageInput implements InputSource {
+  private readonly queue: number[][] = [];
+  dropped = 0;
+  push(record: number[]): void {
+    if (this.queue.length >= 4096) {
+      this.queue.shift();
+      this.dropped++;
+    }
+    this.queue.push(record);
+  }
+  pop(out: Float64Array): boolean {
+    const record = this.queue.shift();
+    if (!record) return false;
+    for (let i = 0; i < INPUT_FIELDS; i++) out[i] = record[i] ?? 0;
+    return true;
+  }
 }
 
 const scope = globalThis as unknown as WorkerScope;
@@ -45,10 +69,16 @@ const END_SECONDS = 1.0;
 let renderer: Renderer | null = null;
 let judge: Judge | null = null;
 let scene: Scene | null = null;
-let ring: EventRing | null = null;
+let inputSource: InputSource | null = null;
+let messageInput: MessageInput | null = null;
 let clock: SharedClock | null = null;
 let settings: PlaySettings | null = null;
 let running = false;
+let messageMode = false;
+let syncCount = 0;
+let syncSum = 0;
+let initialToMain = 0;
+const SYNC_SAMPLES = 8;
 let raf = 0;
 /** Add to this worker's performance.now() to get the page's. */
 let toMain = 0;
@@ -112,6 +142,17 @@ function measureClock(probe: SharedArrayBuffer, mainOrigin: number): void {
   }
 }
 
+function startClockSync(): void {
+  let sent = 0;
+  const tick = (): void => {
+    if (sent >= SYNC_SAMPLES) return;
+    sent++;
+    scope.postMessage({ type: 'clock-sync', workerNow: performance.now() });
+    scope.setTimeout(tick, 30);
+  };
+  scope.setTimeout(tick, 50);
+}
+
 function init(msg: InitMessage): void {
   settings = msg.settings;
   globalOffset = settings.globalOffsetMs / 1000;
@@ -145,9 +186,19 @@ function init(msg: InitMessage): void {
     }
   };
 
-  ring = new EventRing(msg.ring, INPUT_FIELDS);
-  clock = new SharedClock(msg.clock);
-  measureClock(msg.probe, msg.mainOrigin);
+  messageMode = msg.mode === 'messages';
+  initialToMain = toMain;
+  if (messageMode) {
+    messageInput = new MessageInput();
+    inputSource = messageInput;
+    clock = new SharedClock(SharedClock.allocate());
+  } else {
+    messageInput = null;
+    if (!msg.ring || !msg.clock || !msg.probe) throw new Error('shared game buffers missing');
+    inputSource = new EventRing(msg.ring, INPUT_FIELDS);
+    clock = new SharedClock(msg.clock);
+    measureClock(msg.probe, msg.mainOrigin);
+  }
 
   idleSeconds = Math.min(0, first) - 1;
   // One frame now: shaders, the texture and the code paths are warm before the first real one.
@@ -162,10 +213,11 @@ function init(msg: InitMessage): void {
     tracks: chart.tracks,
   });
   raf = scope.requestAnimationFrame(frame);
+  if (messageMode) startClockSync();
 }
 
 function frame(ts: number): void {
-  if (!running || !renderer || !judge || !scene || !ring || !clock || !settings) return;
+  if (!running || !renderer || !judge || !scene || !inputSource || !clock || !settings) return;
   const t0 = performance.now();
   if (lastTs >= 0) intervals.push(ts - lastTs);
   lastTs = ts;
@@ -178,7 +230,7 @@ function frame(ts: number): void {
   let drawSeconds = idleSeconds;
   frameStampCount = 0;
   if (playing) {
-    while (ring.pop(rec)) {
+    while (inputSource!.pop(rec)) {
       const stamp = rec[3]!;
       const seconds = clock.musicSecondsAt(stamp) + globalOffset;
       const track = rec[1]!;
@@ -202,7 +254,7 @@ function frame(ts: number): void {
     judge.advance(settings.autoplay ? drawSeconds : clock.musicSecondsAt(nowMain) + globalOffset - settings.judgeLagMs / 1000);
     idleSeconds = drawSeconds;
   } else {
-    while (ring.pop(rec)) {} // not playing: inputs mean nothing
+    while (inputSource!.pop(rec)) {} // not playing: inputs mean nothing
   }
 
   scene.draw(drawSeconds, frameMain);
@@ -272,7 +324,7 @@ function telemetry(): Telemetry {
     inputToFrameMs: roundSummary(summarize(inputToFrame.values())),
     inputs,
     lateInputs,
-    ringDropped: ring!.dropped,
+    ringDropped: inputSource!.dropped,
     quadsDropped: renderer!.dropped,
     clockOffsetErrorMs: clockOffsetError === null ? null : round(clockOffsetError, 4),
     clockOffsetSamples,
@@ -292,6 +344,19 @@ scope.onmessage = (e: MessageEvent) => {
   try {
     if (msg.type === 'init') {
       init(msg);
+    } else if (msg.type === 'input') {
+      messageInput?.push(msg.record);
+    } else if (msg.type === 'clock') {
+      clock?.write(msg.fitPerf, msg.fitContext, msg.fitSlope, msg.musicOffsetSeconds);
+    } else if (msg.type === 'clock-sync-reply') {
+      const w2 = performance.now();
+      const measured = ((msg.receivedPageNow - msg.workerNow) + (msg.pageNow - w2)) / 2;
+      syncSum += measured;
+      if (++syncCount >= SYNC_SAMPLES) {
+        toMain = syncSum / SYNC_SAMPLES;
+        clockOffsetError = toMain - initialToMain;
+        clockOffsetSamples = syncCount;
+      }
     } else if (msg.type === 'resize') {
       if (renderer && msg.width > 0 && msg.height > 0) {
         renderer.canvas.width = msg.width;

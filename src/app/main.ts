@@ -438,13 +438,10 @@ window.addEventListener('keydown', (e) => {
   if (current?.onKey?.(e)) e.preventDefault();
 });
 
-if (!globalThis.crossOriginIsolated) {
-  host.replaceChildren(h('div', { class: 'screen' }, h('p', { class: 'notice' }, 'This page needs cross-origin isolation (shared memory). Open it through "npm run serve".')));
-} else {
-  app.input.start();
-  void app.input.openKnownHid();
-  app.show(titleScreen());
-}
+if (!globalThis.crossOriginIsolated) notice = 'No cross-origin isolation: gameplay uses message passing.';
+app.input.start();
+void app.input.openKnownHid();
+app.show(titleScreen());
 
 // For the end-to-end test.
 (window as unknown as { __app: unknown }).__app = {

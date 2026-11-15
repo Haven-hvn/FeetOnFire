@@ -1,14 +1,14 @@
 // The page's side of a game: owns the canvas and the worker, publishes the audio clock,
 // stamps keyboard input into the shared ring, and starts the music.
 //
-// The page must be cross-origin isolated (shared memory). The audio engine is the caller's:
-// one for the whole visit, never suspended (docs/LATENCY.md section 7).
+// Uses shared memory when the page is cross-origin isolated; otherwise it falls back to
+// message passing. The audio engine is the caller's: one for the whole visit, never suspended.
 
 import type { AudioEngine } from '../audio/engine.ts';
 import type { SimfileFormat } from '../chart/index.ts';
 import { EventRing } from '../shared/ring.ts';
 import { DEFAULT_BINDINGS, type Bindings } from './bindings.ts';
-import { InputRouter } from './input.ts';
+import { InputRouter, type InputSink } from './input.ts';
 import {
   DEFAULT_SETTINGS,
   INPUT_FIELDS,
@@ -20,8 +20,32 @@ import {
   type ReportLog,
   type Results,
   type Telemetry,
+  type ToWorker,
 } from './protocol.ts';
 import { SHARED_CLOCK_BYTES, SharedClock } from './shared-clock.ts';
+
+interface SessionChannels {
+  input: InputSink;
+  clock: SharedClock | null;
+  mode: 'shared' | 'messages';
+}
+
+class MessageInputSink implements InputSink {
+  dropped = 0;
+  private readonly post: (message: ToWorker) => void;
+  constructor(post: (message: ToWorker) => void) {
+    this.post = post;
+  }
+  push(rec: ArrayLike<number>): boolean {
+    try {
+      this.post({ type: 'input', record: Array.from(rec) });
+      return true;
+    } catch {
+      this.dropped++;
+      return false;
+    }
+  }
+}
 
 export interface SessionOptions {
   simfile: Uint8Array;
@@ -70,8 +94,8 @@ export class GameSession {
 
   private readonly engine: AudioEngine;
   private readonly worker: Worker;
-  private readonly ring: EventRing;
-  private readonly clock: SharedClock;
+  private readonly inputSink: InputSink;
+  private readonly clock: SharedClock | null;
   private readonly host: HTMLElement;
   private readonly observer: ResizeObserver;
   private readonly input: InputRouter;
@@ -82,11 +106,11 @@ export class GameSession {
   private waiters: ((report: SessionReport | null) => void)[] = [];
   private stopped = false;
 
-  private constructor(engine: AudioEngine, worker: Worker, ring: EventRing, clock: SharedClock, host: HTMLElement, info: ChartInfo, options: SessionOptions) {
+  private constructor(engine: AudioEngine, worker: Worker, channels: SessionChannels, host: HTMLElement, info: ChartInfo, options: SessionOptions) {
     this.engine = engine;
     this.worker = worker;
-    this.ring = ring;
-    this.clock = clock;
+    this.inputSink = channels.input;
+    this.clock = channels.clock;
     this.host = host;
     this.info = info;
     this.ownsInput = !options.input;
@@ -111,7 +135,7 @@ export class GameSession {
     this.publish();
 
     this.input.releaseAll();
-    this.input.setRing(ring);
+    this.input.setRing(this.inputSink);
     if (this.ownsInput) this.input.start();
   }
 
@@ -139,7 +163,7 @@ export class GameSession {
     // After the clock is published (the worker throws inputs away while nothing plays), and
     // stamped with the moment the music comes back to where it stopped.
     const stamp = this.engine.perfTimeOfMusic(at) ?? performance.now();
-    for (let track = 0; track < this.info.tracks; track++) this.ring.push([INPUT_INJECTED, track, 0, stamp]);
+    for (let track = 0; track < this.info.tracks; track++) this.inputSink.push([INPUT_INJECTED, track, 0, stamp]);
   }
 
   /** Shows a picture behind the field, darkened to `dim` (0 black .. 1 as it is). */
@@ -153,13 +177,16 @@ export class GameSession {
    * Resolves when the worker has the chart and the music has been started.
    */
   static async start(host: HTMLElement, engine: AudioEngine, options: SessionOptions): Promise<GameSession> {
-    if (typeof SharedArrayBuffer === 'undefined' || !globalThis.crossOriginIsolated) {
-      throw new Error('The page is not cross-origin isolated: shared memory is not available');
-    }
     if (!engine.musicInfo) throw new Error('No music is loaded');
-    const ring = EventRing.create(INPUT_RING_CAPACITY, INPUT_FIELDS, true);
-    const clock = new SharedClock(new SharedArrayBuffer(SHARED_CLOCK_BYTES));
-    const probe = new SharedArrayBuffer(8);
+    const isolated = typeof SharedArrayBuffer !== 'undefined' && globalThis.crossOriginIsolated === true;
+    let ring: EventRing | null = null;
+    let clock: SharedClock | null = null;
+    let probe: SharedArrayBuffer | null = null;
+    if (isolated) {
+      ring = EventRing.create(INPUT_RING_CAPACITY, INPUT_FIELDS, true);
+      clock = new SharedClock(new SharedArrayBuffer(SHARED_CLOCK_BYTES));
+      probe = new SharedArrayBuffer(8);
+    }
 
     // The clock map needs a few pairs before it can be trusted: 50 ms apart.
     for (let waited = 0; !engine.clock.fitted && waited < 3000; waited += 25) await new Promise((r) => setTimeout(r, 25));
@@ -176,6 +203,7 @@ export class GameSession {
     const offscreen = canvas.transferControlToOffscreen();
 
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+    const messageSink = isolated ? null : new MessageInputSink((message) => worker.postMessage(message));
     let info: ChartInfo;
     try {
       info = await new Promise<ChartInfo>((resolve, reject) => {
@@ -186,7 +214,7 @@ export class GameSession {
         };
         worker.onmessage = (e: MessageEvent) => {
           const msg = e.data as FromWorker;
-          if (msg.type === 'clock-ready') {
+          if (msg.type === 'clock-ready' && probe) {
             // Publish this thread's clock for 25 ms: the worker measures its own against it.
             const view = new Float64Array(probe);
             const end = performance.now() + 25;
@@ -203,15 +231,18 @@ export class GameSession {
           type: 'init',
           canvas: offscreen,
           mainOrigin: performance.timeOrigin,
-          ring: ring.buffer as SharedArrayBuffer,
-          clock: clock.buffer as SharedArrayBuffer,
-          probe,
+          mode: isolated ? 'shared' : 'messages',
           simfile: options.simfile,
           format: options.format,
           path: options.path,
           chartIndex: options.chartIndex,
           settings: { ...DEFAULT_SETTINGS, ...options.settings },
         };
+        if (isolated && ring && clock && probe) {
+          init.ring = ring.buffer as SharedArrayBuffer;
+          init.clock = clock.buffer as SharedArrayBuffer;
+          init.probe = probe;
+        }
         worker.postMessage(init, [offscreen]);
       });
     } catch (error) {
@@ -219,19 +250,27 @@ export class GameSession {
       host.replaceChildren();
       throw error;
     }
-    return new GameSession(engine, worker, ring, clock, host, info, options);
+    const channels: SessionChannels = isolated
+      ? { input: ring!, clock: clock!, mode: 'shared' }
+      : { input: messageSink!, clock: null, mode: 'messages' };
+    return new GameSession(engine, worker, channels, host, info, options);
   }
 
   /** Writes the clock map and the music's place on it where the worker reads them. */
   private publish = (): void => {
     const map = this.engine.clock;
     if (map.samples === 0) return; // started afresh: the worker keeps the last line until there is a new one
-    this.clock.write(map.fitPerf, map.fitContext, map.fitSlope, this.engine.musicOffsetSeconds);
+    const musicOffset = this.engine.musicOffsetSeconds;
+    if (this.clock) {
+      this.clock.write(map.fitPerf, map.fitContext, map.fitSlope, musicOffset);
+    } else {
+      this.worker.postMessage({ type: 'clock', fitPerf: map.fitPerf, fitContext: map.fitContext, fitSlope: map.fitSlope, musicOffsetSeconds: musicOffset });
+    }
   };
 
   /** For tests: an input with a chosen timestamp (ms, this page's performance clock). */
   inject(track: number, down: boolean, timeStampMs: number): void {
-    this.ring.push([INPUT_INJECTED, track, down ? 1 : 0, timeStampMs]);
+    this.inputSink.push([INPUT_INJECTED, track, down ? 1 : 0, timeStampMs]);
   }
 
   /** Performance time (ms) at which the game is at music time `seconds` (global offset included). */
@@ -241,7 +280,10 @@ export class GameSession {
 
   private onMessage = (e: MessageEvent): void => {
     const msg = e.data as FromWorker;
-    if (msg.type === 'mine') {
+    if (msg.type === 'clock-sync') {
+      const receivedPageNow = performance.now();
+      this.worker.postMessage({ type: 'clock-sync-reply', workerNow: msg.workerNow, receivedPageNow, pageNow: performance.now() });
+    } else if (msg.type === 'mine') {
       if (this.mineSound !== undefined) this.engine.playSound(this.mineSound, { gain: 0.6 });
     } else if (msg.type === 'finished') {
       this.onFinished?.(msg.results);
