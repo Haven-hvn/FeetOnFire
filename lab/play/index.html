@@ -13,7 +13,7 @@
   <header>
     <h1>Play</h1>
     <p>Gameplay test page (phase 5). Pick a song from your disk, choose a chart, play. Files stay on this machine; nothing is uploaded. The song list, settings and calibration screens come in phase 6.</p>
-    <p id="warning" class="warning" hidden>This page is not cross-origin isolated, so shared memory is off and the game cannot run. Open it through <code>npm run serve</code>.</p>
+    <p id="warning" class="warning" hidden>This page is not cross-origin isolated, so shared memory and fine timers are off. The game still runs, using message passing; some timing is a little less precise. Open it through <code>npm run serve</code> for the best measurements.</p>
   </header>
 
   <section>
