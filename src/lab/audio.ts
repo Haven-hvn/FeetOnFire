@@ -4,6 +4,7 @@
 import { AudioClockMap, predictionErrors } from '../shared/clock.ts';
 import { makeClick } from '../shared/onset.ts';
 import { Series, linearFit, round, roundSummary, summarize } from '../shared/stats.ts';
+import clickWorkletUrl from './click-worklet.ts?worker&url';
 
 export interface Recording {
   samples: Float32Array;
@@ -75,7 +76,7 @@ export class AudioLab {
     this.clicksPlayed = 0;
     const ctx = new AudioContext({ latencyHint });
     this.hint = String(latencyHint);
-    await ctx.audioWorklet.addModule(new URL('./click-worklet.js', import.meta.url));
+    await ctx.audioWorklet.addModule(clickWorkletUrl);
     this.click = makeClick(ctx.sampleRate);
     const sab = typeof SharedArrayBuffer !== 'undefined' && window.crossOriginIsolated ? new SharedArrayBuffer(32) : null;
     this.shared = sab ? new Int32Array(sab) : null;

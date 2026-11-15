@@ -1,6 +1,8 @@
 // Main-thread side of the mixer worklet (mixer-worklet.ts). Works on any audio context,
 // including an OfflineAudioContext, which is how the tests check it sample by sample.
 
+import mixerWorkletUrl from './mixer-worklet.ts?worker&url';
+
 /** What the worklet reports when asked. */
 export interface MixerState {
   /** First frame of the next quantum to be rendered. */
@@ -77,7 +79,7 @@ export class Mixer {
    */
   static async create(context: BaseAudioContext, options: { keepAwake?: boolean } = {}): Promise<Mixer> {
     const keepAwake = options.keepAwake ?? (typeof OfflineAudioContext === 'undefined' || !(context instanceof OfflineAudioContext));
-    await context.audioWorklet.addModule(new URL('./mixer-worklet.js', import.meta.url));
+    await context.audioWorklet.addModule(mixerWorkletUrl);
     const sab = canShare() ? new SharedArrayBuffer(SLOTS * 4) : null;
     const node = new AudioWorkletNode(context, 'mixer', {
       numberOfInputs: 0,
