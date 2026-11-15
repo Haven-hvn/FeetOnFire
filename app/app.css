@@ -94,6 +94,8 @@ body {
   #app::before,
   .grade,
   .press,
+  .pad-key,
+  .pad-panel::before,
   button.play {
     animation: none !important;
   }
@@ -580,14 +582,355 @@ kbd {
   animation: none;
 }
 
-.stage {
+.game-body {
   flex: 1;
   min-height: 0;
+  display: flex;
+  position: relative;
+}
+
+.stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* -------------------------------------------------------- dance pad drawer */
+
+.pad-drawer {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* The tab that pulls the pad out stays on the right edge whether the pad is open or not. */
+.pad-tab {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 18px 8px;
+  border: 1px solid var(--line-strong);
+  border-right: none;
+  border-radius: 16px 0 0 16px;
+  background:
+    linear-gradient(180deg, rgba(24, 31, 52, 0.92), rgba(9, 12, 20, 0.94)),
+    radial-gradient(140% 60% at 0% 0%, rgba(63, 210, 255, 0.14), transparent 60%);
+  backdrop-filter: blur(16px);
+  color: var(--accent);
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow:
+    -10px 0 34px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    transform 0.15s;
+}
+
+/* The four arrows of a mini pad, in their hues. */
+.pad-tab-dots {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: hsl(160 90% 62%);
+  box-shadow:
+    12px 0 0 -1px hsl(205 90% 66%),
+    0 12px 0 -1px hsl(335 90% 66%),
+    12px 12px 0 -1px hsl(45 95% 64%);
+  opacity: 0.9;
+}
+
+.pad-tab:hover {
+  border-color: var(--accent);
+  box-shadow:
+    -10px 0 34px rgba(0, 0, 0, 0.5),
+    -6px 0 22px rgba(63, 210, 255, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateY(-50%) translateX(-2px);
+}
+
+.pad-tab:active {
+  transform: translateY(-50%) translateX(0) scale(0.97);
+}
+
+.pad-tab-chevron {
+  font-size: 15px;
+  line-height: 1;
+  transition: transform 0.25s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.pad-tab.open .pad-tab-chevron {
+  transform: rotate(180deg);
+}
+
+.pad-tab-label {
+  writing-mode: vertical-rl;
+  font: 800 12px/1 var(--display);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.pad-panel {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  right: 40px;
+  width: clamp(140px, 18vw, 200px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 18px 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-right: none;
+  border-radius: 18px 0 0 18px;
+  background:
+    linear-gradient(160deg, rgba(30, 38, 62, 0.72), rgba(10, 13, 22, 0.82)),
+    radial-gradient(120% 90% at 0% 0%, rgba(63, 210, 255, 0.12), transparent 60%);
+  backdrop-filter: blur(16px);
+  box-shadow:
+    -18px 0 50px rgba(0, 0, 0, 0.55),
+    inset 1px 0 0 rgba(255, 255, 255, 0.07);
+  transform: translateX(calc(100% + 60px));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.28s cubic-bezier(0.2, 0.9, 0.25, 1),
+    opacity 0.2s;
+}
+
+/* A slow sheen that sweeps the glass while the pad is open. */
+.pad-panel::before {
+  content: '';
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  left: -60%;
+  width: 45%;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+  transform: skewX(-18deg);
+  animation: pad-sheen 5.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.pad-panel.open::before {
+  animation-play-state: running;
+}
+
+@keyframes pad-sheen {
+  0%,
+  55% {
+    left: -60%;
+  }
+  85%,
+  100% {
+    left: 130%;
+  }
+}
+
+.pad-panel.open {
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pad-title {
+  font: italic 800 17px/1 var(--display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #fff, #9fdcff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.pad-hint {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.pad-cross {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 9px;
+  width: min(100%, 42vh);
+  aspect-ratio: 1;
+}
+
+.pad-key {
+  --h: 200;
+  --d: 0s;
+  position: relative;
+  overflow: hidden;
+  grid-area: unset;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: 17px;
+  border: 1px solid hsl(var(--h) 85% 68% / 0.4);
+  background:
+    linear-gradient(165deg, hsl(var(--h) 72% 56% / 0.3), hsl(var(--h) 70% 38% / 0.1) 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 42%),
+    rgba(9, 12, 20, 0.6);
+  color: hsl(var(--h) 95% 76%);
+  font-size: clamp(20px, 3vw, 32px);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -4px 0 hsl(var(--h) 70% 30% / 0.5),
+    0 7px 16px rgba(0, 0, 0, 0.45);
+  animation: pad-breathe 3.4s ease-in-out var(--d) infinite;
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.12s,
+    background 0.12s,
+    border-color 0.12s;
+}
+
+/* A soft ring of light that swells behind each idle key, staggered like a slow pulse. */
+@keyframes pad-breathe {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      inset 0 -4px 0 hsl(var(--h) 70% 30% / 0.5),
+      0 7px 16px rgba(0, 0, 0, 0.45),
+      0 0 0 hsl(var(--h) 95% 70% / 0);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      inset 0 -4px 0 hsl(var(--h) 70% 30% / 0.5),
+      0 7px 16px rgba(0, 0, 0, 0.45),
+      0 0 16px hsl(var(--h) 95% 70% / 0.28);
+  }
+}
+
+/* Stagger the four keys' breathing. DOM order is up, left, right, down. */
+.pad-cross .pad-key:nth-child(1) {
+  --d: 0s;
+}
+.pad-cross .pad-key:nth-child(2) {
+  --d: 0.5s;
+}
+.pad-cross .pad-key:nth-child(3) {
+  --d: 1s;
+}
+.pad-cross .pad-key:nth-child(4) {
+  --d: 1.5s;
+}
+
+/* The flash that blooms under a finger when a key goes down. */
+.pad-key::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 50% 38%, hsl(var(--h) 100% 82% / 0.55), transparent 62%);
+  opacity: 0;
+  transform: scale(0.55);
+  transition:
+    opacity 0.1s,
+    transform 0.22s ease-out;
+  pointer-events: none;
+}
+
+.pad-key.pad-left {
+  --h: 205;
+  grid-area: 2 / 1;
+}
+.pad-key.pad-down {
+  --h: 335;
+  grid-area: 3 / 2;
+}
+.pad-key.pad-up {
+  --h: 160;
+  grid-area: 1 / 2;
+}
+.pad-key.pad-right {
+  --h: 45;
+  grid-area: 2 / 3;
+}
+
+.pad-key:hover {
+  border-color: hsl(var(--h) 90% 72% / 0.8);
+  background:
+    linear-gradient(165deg, hsl(var(--h) 78% 60% / 0.45), hsl(var(--h) 72% 44% / 0.2) 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09), transparent 42%),
+    rgba(9, 12, 20, 0.55);
+  transform: translateY(-1px);
+}
+
+.pad-key:active,
+.pad-key.down {
+  animation: none;
+  transform: scale(0.88);
+  border-color: hsl(var(--h) 100% 82%);
+  background:
+    linear-gradient(165deg, hsl(var(--h) 95% 66% / 0.95), hsl(var(--h) 88% 50% / 0.85) 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 45%);
+  color: #fff;
+  box-shadow:
+    inset 0 2px 6px rgba(255, 255, 255, 0.35),
+    inset 0 -2px 6px hsl(var(--h) 80% 30% / 0.6),
+    0 0 26px hsl(var(--h) 95% 68% / 0.6),
+    0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.pad-key:active::after,
+.pad-key.down::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.pad-glyph {
+  position: relative;
+  display: block;
+  font-size: 1.15em;
+  transform: translateY(-2%);
+  background: linear-gradient(180deg, hsl(var(--h) 100% 88%), hsl(var(--h) 92% 62%) 70%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 6px hsl(var(--h) 90% 55% / 0.55));
+  transition: filter 0.12s;
+}
+
+.pad-key.down .pad-glyph,
+.pad-key:active .pad-glyph {
+  background: linear-gradient(180deg, #fff, hsl(var(--h) 100% 80%));
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0 10px hsl(var(--h) 100% 85% / 0.95));
+}
+
+.pad-key:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .overlay {
   position: absolute;
   inset: 0;
+  z-index: 5;
   display: grid;
   place-items: center;
   background: rgba(3, 5, 10, 0.66);

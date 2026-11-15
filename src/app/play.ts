@@ -16,10 +16,85 @@ const EV_TAP_JUDGMENT = 1;
 /** TapNoteScore W5: the least that is a hit. */
 const TNS_W5 = 5;
 
+const PAD_GLYPHS = ['◀', '▼', '▲', '▶'];
+const PAD_NAMES = ['Left', 'Down', 'Up', 'Right'];
+const PAD_AREA = ['left', 'down', 'up', 'right'];
+
+/**
+ * The on-screen dance pad down the right side of the game screen: four touch zones in the
+ * dance arrows' diamond. Multi-touch works; each zone is one panel. `release` lets go of
+ * everything held (pause, leaving).
+ */
+function dancePad(app: App): { el: HTMLElement; release: () => void } {
+  const held = new Map<number, number>(); // pointerId -> track
+  const keys: HTMLElement[] = [];
+  const refresh = (track: number): void => {
+    let any = false;
+    for (const t of held.values()) if (t === track) any = true;
+    keys[track]?.classList.toggle('down', any);
+  };
+  const press = (track: number, down: boolean, timeStamp: number): void => {
+    app.input.touch(track, down, timeStamp);
+    refresh(track);
+  };
+  const release = (): void => {
+    for (const [id, track] of held) {
+      held.delete(id);
+      press(track, false, performance.now());
+    }
+  };
+  const key = (track: number): HTMLElement => {
+    const el = h('button', { class: `pad-key pad-${PAD_AREA[track]}`, 'aria-label': PAD_NAMES[track]!, type: 'button' }, h('span', { class: 'pad-glyph' }, PAD_GLYPHS[track]));
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      held.set(e.pointerId, track);
+      press(track, true, e.timeStamp);
+    });
+    const up = (e: PointerEvent): void => {
+      if (held.get(e.pointerId) !== track) return;
+      held.delete(e.pointerId);
+      press(track, false, e.timeStamp);
+    };
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    keys[track] = el;
+    return el;
+  };
+  const panel = h(
+    'div',
+    { class: 'pad-panel' },
+    h('p', { class: 'pad-title' }, 'Dance pad'),
+    h('div', { class: 'pad-cross' }, [2, 0, 3, 1].map(key)),
+    h('p', { class: 'pad-hint' }, 'Touch the arrows'),
+  );
+  const tab = h(
+    'button',
+    {
+      class: 'pad-tab',
+      type: 'button',
+      'aria-label': 'Show the touch dance pad',
+      'aria-expanded': 'false',
+      onclick: () => {
+        const open = panel.classList.toggle('open');
+        tab.classList.toggle('open', open);
+        tab.setAttribute('aria-expanded', String(open));
+        tab.setAttribute('aria-label', open ? 'Hide the touch dance pad' : 'Show the touch dance pad');
+      },
+    },
+    h('span', { class: 'pad-tab-dots', 'aria-hidden': 'true' }),
+    h('span', { class: 'pad-tab-chevron' }, '‹'),
+    h('span', { class: 'pad-tab-label' }, 'Pad'),
+  );
+  const el = h('div', { class: 'pad-drawer' }, panel, tab);
+  return { el, release };
+}
+
 export async function playScreen(app: App, song: SongRecord, chart: ChartRecord): Promise<Screen> {
   const stage = h('div', { class: 'stage' });
+  const pad = dancePad(app);
   const message = h('div', { class: 'overlay' }, h('div', { class: 'overlay-box' }, h('p', { class: 'loading' }, `Loading ${song.title}…`)));
-  const root = h('div', { class: 'screen game' }, stage, message);
+  const root = h('div', { class: 'screen game' }, h('div', { class: 'game-body' }, stage, pad.el), message);
   let session: GameSession | null = null;
   let closed = false;
   let leaving = false;
@@ -41,6 +116,7 @@ export async function playScreen(app: App, song: SongRecord, chart: ChartRecord)
 
   const pauseMenu = (): void => {
     if (!session || session.paused || leaving) return;
+    pad.release();
     session.pause();
     const resume = h('button', { class: 'primary', onclick: () => unpause() }, 'Resume');
     message.replaceChildren(
@@ -63,6 +139,7 @@ export async function playScreen(app: App, song: SongRecord, chart: ChartRecord)
   };
   const quit = async (): Promise<void> => {
     app.sfx('back');
+    pad.release();
     leaving = true;
     await session?.stop(0.1);
     session = null;
@@ -130,7 +207,10 @@ export async function playScreen(app: App, song: SongRecord, chart: ChartRecord)
     }
   })();
 
-  const onBlur = (): void => pauseMenu();
+  const onBlur = (): void => {
+    pad.release();
+    pauseMenu();
+  };
   window.addEventListener('blur', onBlur);
 
   return {
@@ -145,6 +225,7 @@ export async function playScreen(app: App, song: SongRecord, chart: ChartRecord)
     close() {
       closed = true;
       window.removeEventListener('blur', onBlur);
+      pad.release();
       void session?.stop(0.1);
       session = null;
     },

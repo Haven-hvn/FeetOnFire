@@ -8,6 +8,8 @@ export const INPUT_FIELDS = 4;
 export const INPUT_KEY = 1;
 export const INPUT_HID = 2;
 export const INPUT_PAD = 3;
+/** A touch pad press, straight on a panel with no binding. */
+export const INPUT_TOUCH = 4;
 /** Written by a test instead of a key event. */
 export const INPUT_INJECTED = 9;
 export const INPUT_RING_CAPACITY = 1024;

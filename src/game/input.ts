@@ -14,7 +14,7 @@
 // been plugged in during development.
 
 import { HidReportDiffer, type Bindings } from './bindings.ts';
-import { INPUT_HID, INPUT_KEY, INPUT_PAD } from './protocol.ts';
+import { INPUT_HID, INPUT_KEY, INPUT_PAD, INPUT_TOUCH } from './protocol.ts';
 
 /** Where stamped panel presses go while a game is running. */
 export interface InputSink {
@@ -105,6 +105,14 @@ export class InputRouter {
   /** True while any control bound to `track` is down. */
   isPanelDown(track: number): boolean {
     return this.panelDown[track]! > 0;
+  }
+
+  /** A touch press straight on a panel, no binding needed. Fingers on one panel act as one switch. */
+  touch(track: number, down: boolean, timeStamp: number): void {
+    if (track < 0 || track >= this.panelDown.length) return;
+    const before = this.panelDown[track]!;
+    this.panelDown[track] = Math.max(0, before + (down ? 1 : -1));
+    if ((before === 0) !== (this.panelDown[track] === 0)) this.ring?.push([INPUT_TOUCH, track, down ? 1 : 0, timeStamp]);
   }
 
   /** One control changed. Returns true when it is bound to a panel. */
