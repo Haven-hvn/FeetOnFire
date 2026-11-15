@@ -1,0 +1,227 @@
+{
+  "schema": 1,
+  "createdAt": "2026-11-10T03:47:30.207Z",
+  "env": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+    "brands": [
+      "Not:A-Brand 8",
+      "Chromium 156",
+      "Google Chrome 156"
+    ],
+    "platform": "macOS",
+    "hardwareConcurrency": 10,
+    "secureContext": true,
+    "crossOriginIsolated": true,
+    "sharedArrayBuffer": true,
+    "timerResolutionMs": 0.005,
+    "devicePixelRatio": 2,
+    "screen": {
+      "width": 1710,
+      "height": 1107
+    },
+    "features": {
+      "webHid": true,
+      "gamepad": true,
+      "audioWorklet": true,
+      "offscreenCanvas": true,
+      "webCodecsAudioDecoder": true,
+      "originPrivateFileSystem": true,
+      "decompressionStream": true
+    }
+  },
+  "clock": {
+    "samples": 4899,
+    "offsetErrorMs": -0.69,
+    "medianMs": -0.69,
+    "timeOriginDeltaMs": 184365.04
+  },
+  "input": {
+    "busyMainThread": false,
+    "keyboard": {
+      "active": false,
+      "keydowns": 67,
+      "dispatchDelayIdleMs": {
+        "n": 67,
+        "min": 2.365,
+        "max": 7.18,
+        "mean": 3.79,
+        "sd": 0.767,
+        "p50": 3.66,
+        "p95": 5.181,
+        "p99": 6.266,
+        "jitterP99": 2.606
+      },
+      "dispatchDelayBusyMs": null
+    },
+    "gamepad": {
+      "active": false,
+      "pads": [],
+      "pollRateHz": null,
+      "updateIntervalMs": null,
+      "updateRateHz": null,
+      "timestampToPollMs": null,
+      "presses": 0
+    },
+    "hid": {
+      "available": true,
+      "devices": [],
+      "mode": "stopped",
+      "workerDevices": [],
+      "workerError": null,
+      "stats": {
+        "reports": 0,
+        "changedReports": 0,
+        "downs": 0,
+        "intervalMs": null,
+        "reportRateHz": null,
+        "dispatchDelayIdleMs": null,
+        "dispatchDelayBusyMs": null,
+        "toggledBits": []
+      }
+    },
+    "ring": {
+      "shared": true,
+      "droppedMain": 0,
+      "droppedWorker": 0
+    },
+    "downsSeen": 67
+  },
+  "audio": {
+    "latencyHint": "interactive",
+    "state": "running",
+    "sampleRate": 48000,
+    "baseLatencyMs": 5.333,
+    "outputLatencyMs": {
+      "n": 987,
+      "min": 0,
+      "max": 40,
+      "mean": 39.959,
+      "sd": 1.273,
+      "p50": 40,
+      "p95": 40,
+      "p99": 40,
+      "jitterP99": 0
+    },
+    "reportedOutputTotalMs": 45.333,
+    "clockMap": {
+      "pairs": 985,
+      "driftPpm": 128.2,
+      "wholeRunResidualRmsMs": 1.1405,
+      "wholeRunResidualMaxMs": 2.4485,
+      "predictionErrorMs": {
+        "n": 977,
+        "min": -0.5985,
+        "max": 4.4162,
+        "mean": 0.0861,
+        "sd": 0.5323,
+        "p50": -0.0001,
+        "p95": 0.677,
+        "p99": 2.9757,
+        "jitterP99": 2.9758
+      }
+    },
+    "heardEstimateDisagreementMs": {
+      "n": 985,
+      "min": -4.843,
+      "max": 1.476,
+      "mean": -2.188,
+      "sd": 1.529,
+      "p50": -2.254,
+      "p95": 0.267,
+      "p99": 0.477,
+      "jitterP99": 2.731
+    },
+    "worklet": {
+      "callbacks": 18496,
+      "discontinuities": 3,
+      "lastDiscontinuity": {
+        "atContextSeconds": 16.592,
+        "gapMs": 2.67
+      },
+      "renderedFrameVsClockMs": {
+        "n": 987,
+        "min": -5.04,
+        "max": 21.237,
+        "mean": 0,
+        "sd": 2.047,
+        "p50": 0.029,
+        "p95": 3.099,
+        "p99": 4.105,
+        "jitterP99": 4.302
+      }
+    },
+    "playbackStats": {
+      "underrunDuration": 0,
+      "underrunEvents": 0,
+      "totalDuration": 49.05707,
+      "averageLatency": 0.03957,
+      "minimumLatency": 0,
+      "maximumLatency": 0.0396
+    },
+    "clicksPlayed": 0,
+    "microphone": false,
+    "stopped": true
+  },
+  "video": {
+    "frames": 2578,
+    "canvas": {
+      "width": 2056,
+      "height": 396
+    },
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)",
+    "desynchronized": {
+      "requested": false,
+      "actual": false
+    },
+    "frameIntervalMs": {
+      "n": 2577,
+      "min": 15.655,
+      "max": 33.345,
+      "mean": 16.692,
+      "sd": 0.763,
+      "p50": 16.665,
+      "p95": 17.536,
+      "p99": 17.665,
+      "jitterP99": 1.005
+    },
+    "refreshHzEstimate": 60.01,
+    "missedFrames": 4,
+    "rafCallbackDelayMs": {
+      "n": 2578,
+      "min": 0.03,
+      "max": 15.215,
+      "mean": 0.342,
+      "sd": 0.354,
+      "p50": 0.34,
+      "p95": 0.39,
+      "p99": 0.515,
+      "jitterP99": 0.252
+    },
+    "frameCpuMs": {
+      "n": 2578,
+      "min": 0,
+      "max": 0.16,
+      "mean": 0.051,
+      "sd": 0.015,
+      "p50": 0.045,
+      "p95": 0.075,
+      "p99": 0.096,
+      "jitterP99": 0.051
+    },
+    "inputAgeAtFrameStartMs": null,
+    "inputEvents": {
+      "key": 0,
+      "hid": 0,
+      "pad": 0
+    },
+    "flashes": {
+      "scheduled": 0,
+      "shown": 0,
+      "startDelayMs": null
+    }
+  },
+  "acoustic": {
+    "roundTrip": null,
+    "tapTest": null
+  }
+}

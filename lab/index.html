@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'">
+  <title>Latency Lab</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="lab.css">
+</head>
+<body>
+  <header>
+    <h1>Latency Lab</h1>
+    <p>Measures what this browser and this machine do to input, audio and video timing. Everything runs locally; nothing is uploaded. All times are milliseconds.</p>
+    <p id="warning" class="warning" hidden>This page is not cross-origin isolated, so shared memory and fine timers are off. Open it through <code>npm run serve</code>.</p>
+  </header>
+
+  <section>
+    <h2>1. Environment</h2>
+    <pre id="env"></pre>
+  </section>
+
+  <section>
+    <h2>2. Input</h2>
+    <p>Start a test, then press keys or step on the pad. <b>Dispatch delay</b> is how long an event waited before a handler ran. It does not include the time from the switch closing to the browser seeing the event; the tap test in section 5 measures that.</p>
+    <div class="row">
+      <button id="kbd-toggle">Start keyboard test</button>
+      <button id="pad-toggle">Start Gamepad API test</button>
+      <label><input type="checkbox" id="busy-toggle"> Keep the main thread busy (30 ms bursts)</label>
+    </div>
+    <div class="row">
+      <button id="hid-connect">Connect HID device…</button>
+      <label>Listen on
+        <select id="hid-mode">
+          <option value="main">main thread</option>
+          <option value="worker">worker</option>
+        </select>
+      </label>
+      <button id="hid-toggle">Start WebHID test</button>
+      <span>Devices: <span id="hid-devices">none</span></span>
+    </div>
+    <p class="hint">The Gamepad API test polls as fast as it can and uses a full CPU core while it runs. Stop it before judging the other numbers.</p>
+    <pre id="input-out"></pre>
+  </section>
+
+  <section>
+    <h2>3. Audio</h2>
+    <p>Reports the output latency the browser claims and how well the performance clock can be mapped to the audio being heard. Leave it running for a minute for a meaningful drift figure.</p>
+    <div class="row">
+      <label>Latency hint
+        <select id="audio-hint">
+          <option value="interactive">interactive</option>
+          <option value="balanced">balanced</option>
+          <option value="playback">playback</option>
+          <option value="0">0 s (smallest the browser allows)</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="audio-awake" checked> Keep the audio device awake (as the game does)</label>
+      <button id="audio-toggle">Start audio test</button>
+      <button id="audio-clicks">Play 8 clicks</button>
+    </div>
+    <pre id="audio-out"></pre>
+  </section>
+
+  <section>
+    <h2>4. Video</h2>
+    <p>WebGL2 in a worker. With the audio test running, “Play 8 clicks” also flashes the top-left patch when each click should be heard.</p>
+    <div class="row">
+      <label><input type="checkbox" id="video-desync"> Request low-latency (desynchronized) canvas</label>
+      <button id="video-toggle">Start video test</button>
+      <button id="video-fullscreen">Fullscreen</button>
+    </div>
+    <div id="video-host"></div>
+    <pre id="video-out"></pre>
+  </section>
+
+  <section>
+    <h2>5. Microphone tests</h2>
+    <p>Needs the audio test running, speakers on (not headphones), and the microphone near both the speakers and the pad or keyboard.</p>
+    <ol>
+      <li><b>Round trip</b>: plays clicks and finds them in the recording. Result = output latency + air + microphone latency.</li>
+      <li><b>Tap test</b>: start the keyboard, Gamepad or WebHID test above, then tap for 15 s. The recorded thump of each tap is compared with the event's timestamp. Result = the constant error the game would judge with, and its jitter.</li>
+    </ol>
+    <div class="row">
+      <button id="mic-attach">Attach microphone</button>
+      <button id="rt-run">Run round trip</button>
+      <button id="tap-run">Run tap test (15 s)</button>
+      <span id="acoustic-status"></span>
+    </div>
+    <pre id="acoustic-out"></pre>
+  </section>
+
+  <section>
+    <h2>6. Report</h2>
+    <div class="row">
+      <button id="report-refresh">Show report</button>
+      <button id="report-download">Download latency-report.json</button>
+    </div>
+    <pre id="report-out"></pre>
+  </section>
+
+  <script type="module" src="/dist/lab/main.js"></script>
+</body>
+</html>
