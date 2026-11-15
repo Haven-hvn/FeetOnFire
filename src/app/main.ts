@@ -11,6 +11,7 @@ import { settingsScreen } from './settings-screen.ts';
 import { socialScreen } from './social-screen.ts';
 import { menuSounds, mineSound, SFX } from './sounds.ts';
 import { bestScores, deleteSong, importFiles, listSongs, loadSettings, saveSettings, songFile, type ScoreRecord } from './store.ts';
+import { demoSeeded, seedDemo } from './demo.ts';
 import { droppedFiles, h, megabytes, pickedFiles, type Screen } from './ui.ts';
 
 const host = document.getElementById('app')!;
@@ -167,6 +168,11 @@ function libraryScreen(): Screen {
     notice = text;
     status.hidden = false;
     status.textContent = text;
+  };
+  const quiet = (): void => {
+    notice = '';
+    status.hidden = true;
+    status.textContent = '';
   };
 
   async function doImport(files: { path: string; file: File }[]): Promise<void> {
@@ -384,7 +390,18 @@ function libraryScreen(): Screen {
   });
 
   render();
-  void listSongs().then((loaded) => {
+  void listSongs().then(async (loaded) => {
+    // A first visit starts with the bundled song, like StepMania's out-of-the-box song.
+    if (loaded.length === 0 && !demoSeeded()) {
+      say('Loading the demo song…');
+      try {
+        await seedDemo();
+        loaded = await listSongs();
+        quiet();
+      } catch {
+        // The demo could not be loaded: the empty library still offers import and social packs.
+      }
+    }
     songs = loaded;
     if (closed) return;
     render();
