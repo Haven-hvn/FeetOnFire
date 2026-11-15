@@ -102,7 +102,7 @@ function playable(song: SongRecord): ChartRecord[] {
 function libraryScreen(): Screen {
   const list = h('div', { class: 'song-list', role: 'listbox', tabindex: 0, 'aria-label': 'Songs' });
   const detail = h('div', { class: 'detail' });
-  const status = h('p', { class: 'notice', role: 'status' }, notice);
+  const status = h('p', { class: 'notice', role: 'status', hidden: !notice }, notice);
   const search = h('input', { type: 'search', placeholder: 'Search songs', value: query, 'aria-label': 'Search songs' });
   const folderInput = h('input', { type: 'file', hidden: true });
   folderInput.setAttribute('webkitdirectory', '');
@@ -165,6 +165,7 @@ function libraryScreen(): Screen {
 
   const say = (text: string): void => {
     notice = text;
+    status.hidden = false;
     status.textContent = text;
   };
 
@@ -438,7 +439,6 @@ window.addEventListener('keydown', (e) => {
   if (current?.onKey?.(e)) e.preventDefault();
 });
 
-if (!globalThis.crossOriginIsolated) notice = 'No cross-origin isolation: gameplay uses message passing.';
 app.input.start();
 void app.input.openKnownHid();
 app.show(titleScreen());
