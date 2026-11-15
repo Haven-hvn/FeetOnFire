@@ -64,6 +64,9 @@ jobs:
           test -f out/index.html
           test -f out/app.css
           test -f out/dist/app/main.js
+          MAIN_VERSION="$(sha256sum out/dist/app/main.js | cut -c1-12)"
+          CSS_VERSION="$(sha256sum out/app.css | cut -c1-12)"
+          sed -i "s|src=\"/dist/app/main.js\"|src=\"/dist/app/main.js?v=$MAIN_VERSION\"|; s|href=\"app.css\"|href=\"app.css?v=$CSS_VERSION\"|" out/index.html
       - name: Authenticate PinMe
         env:
           PINME_APPKEY: ${{ secrets.PINME_APPKEY }}
