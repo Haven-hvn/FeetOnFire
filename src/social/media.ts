@@ -45,7 +45,19 @@ function filbeamUrl(owner: string, pieceCid: string, filecoinChainId: 314 | 3141
 async function fetchClear(pack: DancePack, config: SocialConfig, onProgress?: (received: number, total?: number) => void, signal?: AbortSignal): Promise<Uint8Array> {
   const cid = pack.media.fcid;
   if (!cid) throw new Error('pack has no clear file reference');
-  const gateways = [config.ipfsGateway, 'https://ipfs.io', 'https://w3s.link'].filter((v, i, a) => v && a.indexOf(v) === i);
+  // Public gateways are best-effort and rate-limit per IP; try several so a
+  // single 429/403 does not hide a healthy upload. Pinata has been the most
+  // reliable for Haven's Filecoin clear roots.
+  const gateways = [
+    config.ipfsGateway,
+    'https://w3s.link',
+    'https://ipfs.io',
+    'https://gateway.pinata.cloud',
+    'https://cf-ipfs.com',
+    'https://dweb.link',
+    'https://gateway.ipfs.io',
+    'https://4everland.io',
+  ].filter((v, i, a) => v && a.indexOf(v) === i);
   let lastError: unknown;
   for (const gateway of gateways) {
     try {
