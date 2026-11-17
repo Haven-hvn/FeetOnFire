@@ -3,33 +3,83 @@
 import type { SocialConfig } from './config.ts';
 import type { DancePack } from './protocol.ts';
 
-async function fetchBytes(url: string, onProgress?: (received: number, total?: number) => void, signal?: AbortSignal): Promise<Uint8Array> {
-  const response = await fetch(url, { signal });
-  if (!response.ok) throw new Error(`download failed (${response.status})`);
-  const total = Number(response.headers.get('content-length')) || undefined;
-  if (!response.body) return new Uint8Array(await response.arrayBuffer());
-  const reader = response.body.getReader();
+interface FetchOptions {
+  onProgress?: (received: number, total?: number) => void;
+  signal?: AbortSignal;
+  /** Total attempts per URL, including the first. Default 3. */
+  attempts?: number;
+}
+
+function abortError(): DOMException {
+  return new DOMException('Fetch cancelled', 'AbortError');
+}
+
+function isAbort(error: unknown, signal?: AbortSignal): boolean {
+  return !!signal?.aborted || (error instanceof DOMException && error.name === 'AbortError');
+}
+
+// Resumable byte retrieval: gateways support HTTP Range, so a dropped
+// connection resumes from the last received byte instead of restarting a
+// multi-megabyte pack; a gateway that ignores Range (200 instead of 206)
+// simply restarts that attempt. Retries are bounded and abort always wins.
+async function fetchBytes(url: string, { onProgress, signal, attempts = 3 }: FetchOptions = {}): Promise<Uint8Array> {
   const chunks: Uint8Array[] = [];
   let received = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    received += value.length;
-    onProgress?.(received, total);
+  let total: number | undefined;
+  for (let attempt = 0; attempt < Math.max(1, attempts); attempt++) {
+    if (signal?.aborted) throw abortError();
+    try {
+      const headers: Record<string, string> = {};
+      if (received > 0) headers.Range = `bytes=${received}-`;
+      const response = await fetch(url, { signal, headers });
+      if (!response.ok || !response.body) {
+        const error = new Error(`download failed (${response.status})`);
+        if (response.status >= 400 && response.status < 500) throw Object.assign(error, { noRetry: true });
+        throw error;
+      }
+      if (received > 0 && response.status === 200) {
+        chunks.length = 0;
+        received = 0;
+      }
+      const length = Number(response.headers.get('content-length') ?? 0);
+      if (Number.isFinite(length) && length > 0) total = response.status === 206 ? received + length : length;
+      const reader = response.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        onProgress?.(received, total);
+      }
+      const out = new Uint8Array(received);
+      let offset = 0;
+      for (const chunk of chunks) {
+        out.set(chunk, offset);
+        offset += chunk.length;
+      }
+      return out;
+    } catch (error) {
+      if (isAbort(error, signal)) throw abortError();
+      if ((error as { noRetry?: boolean })?.noRetry) throw error;
+      if (attempt === Math.max(1, attempts) - 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+    }
   }
-  const out = new Uint8Array(received);
-  let offset = 0;
-  for (const chunk of chunks) {
-    out.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return out;
+  throw new Error('download failed');
 }
 
 function gatewayUrl(gateway: string, cid: string): string {
-  if (/^https?:\/\//i.test(cid)) return cid;
-  return `${gateway.replace(/\/+$/, '')}/ipfs/${cid}`;
+  let ref = cid.trim();
+  if (/^https?:\/\//i.test(ref)) {
+    // A full gateway URL still names content: re-root its /ipfs/ or /ipns/
+    // path on each gateway, so one gateway's CORS or rate-limit failure does
+    // not sink every fallback attempt.
+    const match = ref.match(/\/(ipfs|ipns)\/([^/?#]+)/i);
+    if (!match) return ref;
+    return `${gateway.replace(/\/+$/, '')}/${match[1]}/${match[2]}`;
+  }
+  ref = ref.replace(/^ipfs:\/\//i, '');
+  return `${gateway.replace(/\/+$/, '')}/ipfs/${ref}`;
 }
 
 function filecoinChainIdForGate(gateChain?: string): 314 | 314159 {
@@ -61,7 +111,7 @@ async function fetchClear(pack: DancePack, config: SocialConfig, onProgress?: (r
   let lastError: unknown;
   for (const gateway of gateways) {
     try {
-      return await fetchBytes(gatewayUrl(gateway, cid), onProgress, signal);
+      return await fetchBytes(gatewayUrl(gateway, cid), { onProgress, signal });
     } catch (error) {
       lastError = error;
       if (signal?.aborted) throw error;
@@ -89,7 +139,7 @@ async function fetchSealed(pack: DancePack, config: SocialConfig, onProgress?: (
       const parsed = tryFrom(piece);
       if (parsed != null) {
         const url = await resolvePieceUrl({ address: pack.owner.toLowerCase() as `0x${string}`, client: synapse.client, pieceCid: parsed, resolvers: [filbeamResolver, chainResolver], ...(signal ? { signal } : {}) });
-        return await fetchBytes(url, onProgress, signal);
+        return await fetchBytes(url, { onProgress, signal });
       }
     } catch (error) {
       if (signal?.aborted) throw error;
@@ -97,7 +147,7 @@ async function fetchSealed(pack: DancePack, config: SocialConfig, onProgress?: (
     const direct = filbeamUrl(pack.owner, piece, chainId);
     if (direct) {
       try {
-        return await fetchBytes(direct, onProgress, signal);
+        return await fetchBytes(direct, { onProgress, signal });
       } catch (error) {
         if (signal?.aborted) throw error;
       }

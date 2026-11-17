@@ -11,7 +11,7 @@ import { SCREEN_HEIGHT } from './field.ts';
 const MAX_QUADS = 8192;
 const FLOATS_PER_VERTEX = 8; // x, y, u, v, r, g, b, a
 const ATLAS_W = 2048;
-const ATLAS_H = 1024;
+const ATLAS_H = 2048;
 const CELL = 256;
 
 export interface Sprite {

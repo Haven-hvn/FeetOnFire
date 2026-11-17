@@ -5,6 +5,8 @@ import { createAppKit } from '@reown/appkit';
 import { arbitrum, arbitrumSepolia, base, baseSepolia, mainnet, optimism, optimismSepolia, sepolia } from '@reown/appkit/networks';
 import type { AppKitNetwork } from '@reown/appkit/networks';
 import { connect, disconnect, getConnection, signTypedData, switchChain, watchConnection, type Config } from '@wagmi/core';
+import { baseAccount } from '@wagmi/connectors/baseAccount';
+import { coinbaseWallet } from '@wagmi/connectors/coinbaseWallet';
 import type { SocialConfig } from './config.ts';
 import type { SocialSigner } from './aol.ts';
 
@@ -23,7 +25,17 @@ let statePromise: Promise<WalletState> | undefined;
 async function ensure(config: SocialConfig): Promise<WalletState> {
   if (!statePromise) {
     statePromise = (async () => {
-      const adapter = new WagmiAdapter({ projectId: config.walletConnectProjectId || 'unset', networks });
+      // AppKit's own Coinbase/Base connectors run telemetry that injects an inline
+      // <script>, which the page CSP blocks. Supplying them here with telemetry off
+      // keeps the wallets but skips the injection (and the console error).
+      const adapter = new WagmiAdapter({
+        projectId: config.walletConnectProjectId || 'unset',
+        networks,
+        connectors: [
+          baseAccount({ preference: { options: 'all', telemetry: false } }),
+          coinbaseWallet({ preference: { options: 'all', telemetry: false } }),
+        ],
+      });
       const wagmiConfig = adapter.wagmiConfig;
       const listeners = new Set<(address: string | undefined) => void>();
       const state: WalletState = { config, wagmiConfig, modal: null, listeners };
@@ -35,6 +47,8 @@ async function ensure(config: SocialConfig): Promise<WalletState> {
           metadata: { name: 'Dance', description: 'StepMania packs from your DataDAO feeds.', url: typeof location === 'undefined' ? 'http://localhost' : location.origin, icons: [] },
           themeMode: 'dark',
           features: { analytics: false },
+          // Our coinbaseWallet connector above replaces the one AppKit would add.
+          enableCoinbase: false,
         });
       }
       state.stopWatch = watchConnection(wagmiConfig, {
