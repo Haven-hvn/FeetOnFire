@@ -10,9 +10,10 @@ import { playScreen } from './play.ts';
 import { settingsScreen } from './settings-screen.ts';
 import { socialScreen } from './social-screen.ts';
 import { menuSounds, mineSound, SFX } from './sounds.ts';
-import { bestScores, deleteSong, importFiles, listSongs, loadSettings, saveSettings, songFile, type ScoreRecord } from './store.ts';
+import { bestScores, deleteSong, listSongs, loadSettings, saveSettings, songFile, type ScoreRecord } from './store.ts';
 import { demoSeeded, seedDemo } from './demo.ts';
-import { droppedFiles, h, megabytes, pickedFiles, type Screen } from './ui.ts';
+import { importPicked, importStatus, onPicked, quiet as quietImport, say as sayImport, setAfterImport } from './import-ui.ts';
+import { droppedFiles, h, megabytes, type Screen } from './ui.ts';
 
 const host = document.getElementById('app')!;
 let current: Screen | null = null;
@@ -24,7 +25,6 @@ let songs: SongRecord[] = [];
 let selectedId: string | null = null;
 let selectedChartKey: string | null = null;
 let query = '';
-let notice = '';
 
 let musicQueue: Promise<unknown> = Promise.resolve();
 /** The music last decoded for a preview: going back and forth between two songs is common. */
@@ -75,6 +75,33 @@ const app: App = {
   },
 };
 
+// The song list and Settings share importing: the pickers live for the whole visit, and the
+// status line is shown by whichever screen currently has it. `say`/`quiet` keep the library's
+// notice for its own messages, and pass them on to the shared status line.
+const status = importStatus;
+
+/** The library screen's repaint, while it is the one on screen. */
+let redraw: (() => void) | null = null;
+
+function say(text: string): void {
+  sayImport(text);
+}
+
+function quiet(): void {
+  quietImport();
+}
+
+onPicked((files) => void importPicked(files));
+setAfterImport((firstAddedId) => {
+  void listSongs().then((loaded) => {
+    songs = loaded;
+    if (firstAddedId) selectedId = firstAddedId;
+    // Repaint the song list if it is up; if the import came from Settings, stay there and
+    // let the next visit to the song list load the new songs.
+    redraw?.();
+  });
+});
+
 function hint(key: string, what: string): HTMLElement {
   return h('span', {}, h('kbd', {}, key), what);
 }
@@ -103,11 +130,7 @@ function playable(song: SongRecord): ChartRecord[] {
 function libraryScreen(): Screen {
   const list = h('div', { class: 'song-list', role: 'listbox', tabindex: 0, 'aria-label': 'Songs' });
   const detail = h('div', { class: 'detail' });
-  const status = h('p', { class: 'notice', role: 'status', hidden: !notice }, notice);
   const search = h('input', { type: 'search', placeholder: 'Search songs', value: query, 'aria-label': 'Search songs' });
-  const folderInput = h('input', { type: 'file', hidden: true });
-  folderInput.setAttribute('webkitdirectory', '');
-  const filesInput = h('input', { type: 'file', hidden: true, multiple: true, accept: '.zip,.smzip,.sm,.ssc,.ogg,.oga,.mp3,.wav,.png,.jpg,.jpeg,.gif,.bmp' });
   const backdrop = h('div', { class: 'backdrop' });
   let bannerUrl: string | null = null;
   let backdropUrl: string | null = null;
@@ -164,38 +187,6 @@ function libraryScreen(): Screen {
   const visible = (): SongRecord[] => songs.filter((song) => playable(song).length > 0 && matches(song, query));
   const selected = (): SongRecord | null => songs.find((s) => s.id === selectedId) ?? null;
 
-  const say = (text: string): void => {
-    notice = text;
-    status.hidden = false;
-    status.textContent = text;
-  };
-  const quiet = (): void => {
-    notice = '';
-    status.hidden = true;
-    status.textContent = '';
-  };
-
-  async function doImport(files: { path: string; file: File }[]): Promise<void> {
-    if (files.length === 0) return;
-    say('Importing…');
-    try {
-      const result = await importFiles(files, (done, total, name) => say(`Importing ${done + 1} of ${total}: ${name}`));
-      songs = await listSongs();
-      const added = result.added.length - result.replaced;
-      const parts = [];
-      if (added > 0) parts.push(`${added} song${added === 1 ? '' : 's'} added`);
-      if (result.replaced > 0) parts.push(`${result.replaced} replaced`);
-      if (result.problems.length > 0) parts.push(result.problems.slice(0, 3).join('; ') + (result.problems.length > 3 ? `; and ${result.problems.length - 3} more` : ''));
-      say(parts.join('. ') || 'Nothing was imported.');
-      if (result.added[0]) selectedId = result.added[0].id;
-    } catch (error) {
-      say(`Import failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    if (!closed) render();
-  }
-
-  folderInput.addEventListener('change', () => void doImport(pickedFiles(folderInput.files)));
-  filesInput.addEventListener('change', () => void doImport(pickedFiles(filesInput.files)));
   search.addEventListener('input', () => {
     query = search.value;
     render();
@@ -342,21 +333,18 @@ function libraryScreen(): Screen {
     );
   }
 
-  const importButtons = [
-    h('button', { class: 'primary', onclick: openSocial }, 'Social packs'),
-    h('button', { onclick: () => folderInput.click() }, 'Add a folder'),
-    h('button', { onclick: () => filesInput.click() }, 'Add files or a zip'),
-  ];
+  const importButtons = [h('button', { class: 'primary', onclick: openSocial }, 'Social packs')];
   const empty = h(
     'div',
     { class: 'empty' },
     h('h2', {}, 'No songs yet'),
-    h('p', {}, 'Add a StepMania song folder, a pack folder, or a zip of either. You can also drop them anywhere on this page. Songs are copied into this browser\'s own storage and never leave your machine.'),
-    h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: openSocial }, 'Browse social packs'), h('button', { onclick: () => folderInput.click() }, 'Add a folder'), h('button', { onclick: () => filesInput.click() }, 'Add files or a zip')),
+    h('p', {}, 'Browse social packs, or add a StepMania song folder, a pack folder, or a zip of either in Settings. You can also drop them anywhere on this page. Songs are copied into this browser\'s own storage and never leave your machine.'),
+    h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: openSocial }, 'Browse social packs'), h('button', { onclick: () => app.show(settingsScreen(app)) }, 'Add songs in Settings…')),
   );
   const body = h('div', { class: 'library-body' }, list, detail);
 
   function render(): void {
+    redraw = render;
     const any = songs.some((s) => playable(s).length > 0);
     body.hidden = !any;
     empty.hidden = any;
@@ -374,8 +362,6 @@ function libraryScreen(): Screen {
     empty,
     body,
     h('footer', { class: 'hints' }, hint('↑↓', 'Song'), hint('←→', 'Difficulty'), hint('Enter', 'Play'), hint('/', 'Search'), hint('Esc', 'Pause in game')),
-    folderInput,
-    filesInput,
   );
 
   root.addEventListener('dragover', (e) => {
@@ -386,7 +372,7 @@ function libraryScreen(): Screen {
   root.addEventListener('drop', (e) => {
     e.preventDefault();
     root.classList.remove('dropping');
-    if (e.dataTransfer) void droppedFiles(e.dataTransfer).then(doImport);
+    if (e.dataTransfer) void droppedFiles(e.dataTransfer).then((files) => void importPicked(files));
   });
 
   render();
@@ -445,6 +431,7 @@ function libraryScreen(): Screen {
     close() {
       stopPreview();
       closed = true;
+      redraw = null;
       if (bannerUrl) URL.revokeObjectURL(bannerUrl);
       if (backdropUrl) URL.revokeObjectURL(backdropUrl);
     },

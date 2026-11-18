@@ -4,6 +4,7 @@ import { DEFAULT_BINDINGS, describeControl, PANEL_NAMES } from '../game/bindings
 import { parseSpeed } from '../game/field.ts';
 import { hidApi } from '../game/input.ts';
 import type { App } from './context.ts';
+import { lastImportMessage, pickFiles, pickFolder, setImportMirror } from './import-ui.ts';
 import { CLICK_COUNT, CLICK_FIRST_SECONDS, CLICK_INTERVAL_SECONDS, clickTrack, summarizeTaps, tapError } from './sounds.ts';
 import { requestPersistence, storageState } from './store.ts';
 import { h, megabytes, type Screen } from './ui.ts';
@@ -238,6 +239,15 @@ export function settingsScreen(app: App): Screen {
   };
   void showStorage();
 
+  // ------------------------------------------------------------------ importing
+  const importNote = h('p', { class: 'note', hidden: true }, lastImportMessage());
+  importNote.hidden = importNote.textContent === '';
+  // Import progress belongs to the screen that started it, but Settings should show it too.
+  setImportMirror((text) => {
+    importNote.textContent = text;
+    importNote.hidden = text === '';
+  });
+
   const root = h(
     'div',
     { class: 'screen settings' },
@@ -304,6 +314,19 @@ export function settingsScreen(app: App): Screen {
         h('p', { class: 'note' }, 'Gamepads work once a button on them has been pressed. Pad input has been written to the specifications but not yet tried on a real pad.'),
       ),
       h('section', {}, h('h2', {}, 'Storage'), storage),
+      h(
+        'section',
+        {},
+        h('h2', {}, 'Songs'),
+        h(
+          'div',
+          { class: 'field' },
+          h('button', { class: 'primary', onclick: pickFolder }, 'Add a folder'),
+          h('button', { onclick: pickFiles }, 'Add files or a zip'),
+        ),
+        h('p', { class: 'note' }, 'Add a StepMania song folder, a pack folder, or a zip of either. You can also drop them anywhere on the song list. Songs are copied into this browser\'s own storage and never leave your machine.'),
+        importNote,
+      ),
     ),
   );
 
@@ -318,6 +341,7 @@ export function settingsScreen(app: App): Screen {
     },
     close() {
       stopCalibration?.();
+      setImportMirror(null);
       app.input.onControl = before;
       app.input.refresh();
     },

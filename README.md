@@ -27,7 +27,7 @@ Arkiv records whose payload carries a `stepmania-pack` manifest under `payload.x
 advisory song list, and imports through the same ZIP pipeline as local files. A pack marked
 `sample` with a clear `fcid` plays without a wallet; gated packs require a wallet whose
 `balanceOf` meets the Arkiv gate threshold, and sealed packs still need the normal Haven-AOL
-epoch unlock. Local folder/zip import remains available.
+epoch unlock. Local folder/zip import is in Settings.
 
 Copy `.env.example` to `.env` for WalletConnect/Arkiv/AOL endpoints; without a project id the
 wallet button explains that social gating is not configured, while clear samples still work.
