@@ -3,6 +3,7 @@
 import { bytesToHex, hexToBytes, parseGateJson, type DancePack, type GateTriple } from './protocol.ts';
 import type { SocialConfig } from './config.ts';
 import { openSealedBytes } from './seal.ts';
+import { getHavenOsBridge } from './os-bridge.ts';
 
 export interface SocialSigner {
   address: string;
@@ -24,6 +25,30 @@ export function hasUnlocked(pack: DancePack): boolean {
 
 export function forgetKeys(): void {
   vetKeys.clear();
+}
+
+export async function restorePackFromOsBridge(pack: DancePack): Promise<boolean> {
+  if (!pack.gateJson) return false;
+  const parsed = parseGateJson(pack.gateJson);
+  if (!parsed || parsed.version !== 3 || parsed.epoch === undefined) return false;
+  const epoch = BigInt(parsed.epoch);
+  if (vetKeys.has(cacheKey(parsed.gate, epoch))) return true;
+  const bridge = getHavenOsBridge();
+  if (!bridge?.connectedToHost) return false;
+  try {
+    const res = await bridge.getGateKey({
+      chainVariant: parsed.gate.chain,
+      tokenAddress: parsed.gate.tokenAddress,
+      threshold: parsed.gate.threshold.toString(),
+      epoch: Number(parsed.epoch),
+    });
+    if (!res?.vetKeyBase64) return false;
+    const vetkeys = await import('@icp-sdk/vetkeys');
+    vetKeys.set(cacheKey(parsed.gate, epoch), vetkeys.VetKey.deserialize(base64Decode(res.vetKeyBase64)));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function toHex(bytes: Uint8Array): `0x${string}` {
@@ -127,6 +152,30 @@ export async function unlockPack(pack: DancePack, signer: SocialSigner, config: 
   const parsed = parseGateJson(pack.gateJson);
   if (!parsed || parsed.version !== 3 || parsed.epoch === undefined) throw new Error('only Haven-AOL v3 epoch gates are supported');
   if (hasUnlocked(pack)) return;
+  if (await restorePackFromOsBridge(pack)) {
+    onProgress?.(null);
+    return;
+  }
+  const bridge = getHavenOsBridge();
+  if (bridge?.connectedToHost) {
+    try {
+      onProgress?.('Unlocking via Haven OS keyring…');
+      const res = await bridge.unlockGate({
+        chainVariant: parsed.gate.chain,
+        tokenAddress: parsed.gate.tokenAddress,
+        threshold: parsed.gate.threshold.toString(),
+        epoch: Number(parsed.epoch),
+      });
+      if (res?.vetKeyBase64) {
+        const vetkeys = await import('@icp-sdk/vetkeys');
+        vetKeys.set(cacheKey(parsed.gate, BigInt(parsed.epoch)), vetkeys.VetKey.deserialize(base64Decode(res.vetKeyBase64)));
+        onProgress?.(null);
+        return;
+      }
+    } catch {
+      // Fall through to local GateRequestV3 flow
+    }
+  }
   const supported = new Set(['EthMainnet', 'EthSepolia', 'ArbitrumOne', 'BaseMainnet', 'OptimismMainnet']);
   if (!supported.has(parsed.gate.chain)) throw new Error(`Haven-AOL v3 does not support ${parsed.gate.chain}`);
   const vetkeys = await import('@icp-sdk/vetkeys');

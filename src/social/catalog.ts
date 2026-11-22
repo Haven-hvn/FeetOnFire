@@ -80,13 +80,13 @@ export function createSocialCatalog(onUpdate: Listener, config: SocialConfig = s
     if (pack.access !== 'sample' && pack.access !== 'open') throw new Error('pack is locked');
     updatePack(id, { importState: 'downloading', progress: 'Preparing…' });
     try {
-      const [{ fetchPackBytes }, { decryptPackBytes, hasUnlocked, unlockPack }, { walletSigner }] = await Promise.all([import('./media.ts'), import('./aol.ts'), import('./wallet.ts')]);
+      const [{ fetchPackBytes }, { decryptPackBytes, hasUnlocked, restorePackFromOsBridge, unlockPack }, { walletSigner }] = await Promise.all([import('./media.ts'), import('./aol.ts'), import('./wallet.ts')]);
       const controller = new AbortController();
       const bytes = await fetchPackBytes(pack, config, (received, total) => updatePack(id, { progress: total ? `Downloading ${Math.round((received / total) * 100)}%` : `Downloading ${(received / 1048576).toFixed(1)} MB` }), controller.signal);
       let zip = bytes;
       if (pack.sealed) {
         updatePack(id, { progress: 'Unlocking…' });
-        if (!hasUnlocked(pack)) {
+        if (!hasUnlocked(pack) && !(await restorePackFromOsBridge(pack))) {
           const signer = await walletSigner(config);
           if (!signer) throw new Error('connect a wallet to unlock this pack');
           await unlockPack(pack, signer, config, (message) => updatePack(id, { progress: message ?? 'Unlocking…' }));
