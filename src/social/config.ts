@@ -28,7 +28,7 @@ export function socialConfig(): SocialConfig {
     arkivApiKey: env('VITE_DANCE_ARKIV_API_KEY'),
     walletConnectProjectId: env('VITE_DANCE_WALLETCONNECT_PROJECT_ID'),
     icpHost: env('VITE_DANCE_ICP_HOST', 'https://icp-api.io'),
-    havenAolCanisterId: env('VITE_DANCE_HAVEN_AOL_CANISTER_ID', 'gny6k-fqaaa-aaaab-ag3ra-cai'),
+    havenAolCanisterId: env('VITE_DANCE_HAVEN_AOL_CANISTER_ID', '3gzy3-kaaaa-aaaan-q6y6q-cai'),
     havenAolVerifyingContract: env('VITE_DANCE_HAVEN_AOL_VERIFYING_CONTRACT', '0x0000000000000000000000000000000000000000'),
     fetchRootKey: env('VITE_DANCE_HAVEN_AOL_FETCH_ROOT_KEY', 'false') === 'true',
     ipfsGateway: env('VITE_DANCE_IPFS_GATEWAY', 'https://w3s.link'),
