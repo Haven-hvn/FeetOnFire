@@ -15,17 +15,17 @@
     "@arkiv-network/sdk": "1.0.1",
     "@filoz/synapse-core": "0.11.1",
     "@filoz/synapse-sdk": "3.0.1",
-    "@icp-sdk/core": "6.1.1",
+    "@icp-sdk/core": "6.1.2",
     "@icp-sdk/vetkeys": "0.7.0",
-    "@reown/appkit": "2.0.0-wagmi-3.0",
-    "@reown/appkit-adapter-wagmi": "2.0.0-wagmi-3.0",
-    "@wagmi/connectors": "8.2.2",
-    "@wagmi/core": "3.6.7",
+    "@reown/appkit": "2.0.0",
+    "@reown/appkit-adapter-wagmi": "2.0.0",
+    "@wagmi/connectors": "8.2.4",
+    "@wagmi/core": "3.6.9",
     "viem": "2.58.6",
-    "wagmi": "3.7.9"
+    "wagmi": "3.7.11"
   },
   "devDependencies": {
-    "typescript": "^7.0.2",
-    "vite": "8.3.5"
+    "typescript": "7.0.2",
+    "vite": "8.3.8"
   }
 }
