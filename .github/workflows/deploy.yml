@@ -36,7 +36,7 @@ jobs:
             if [ -n "${!name}" ]; then echo "$name is set"; else echo "$name is empty"; fi
           done
       - name: Install
-        run: npm ci
+        run: npm install --legacy-peer-deps
       - name: Build
         env:
           VITE_DANCE_ARKIV_RPC_URL: ${{ vars.VITE_DANCE_ARKIV_RPC_URL || 'https://rpc.rabdi.db-chain.testnet.arkiv.network' }}
